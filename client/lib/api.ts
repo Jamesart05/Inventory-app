@@ -87,6 +87,12 @@ export interface ItemInput {
   imageUrl?: string;
 }
 
+export interface ImportResult {
+  imported: number;
+  total: number;
+  errors: { row: number; reason: string }[];
+}
+
 export const itemsApi = {
   list: (params: { q?: string; barcode?: string; page?: number; pageSize?: number } = {}) => {
     const search = new URLSearchParams();
@@ -103,6 +109,25 @@ export const itemsApi = {
   update: (id: string, data: Partial<ItemInput> & { isActive?: boolean }) =>
     request<{ item: Item }>(`/items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id: string) => request<{ message: string }>(`/items/${id}`, { method: 'DELETE' }),
+  import: async (file: File): Promise<ImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_URL}/items/import`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData, // no Content-Type header — the browser sets the multipart boundary
+    });
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      // no body
+    }
+    if (!res.ok) {
+      throw new ApiError(data?.error || `Import failed (${res.status})`, res.status);
+    }
+    return data as ImportResult;
+  },
 };
 
 // ---- Movements ----
