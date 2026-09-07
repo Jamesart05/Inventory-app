@@ -13,6 +13,10 @@ const movementRoutes = require('./routes/movement.routes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
+<<<<<<< HEAD
+=======
+app.set('trust proxy', 1);
+>>>>>>> 80c67bd0b7a27054c2a21e0173fca4bdd288c9e0
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:3000')
   .split(',')

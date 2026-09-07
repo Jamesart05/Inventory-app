@@ -37,4 +37,8 @@ export default function ThemeToggle() {
       {theme === 'dark' ? '☀️' : '🌙'}
     </button>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 80c67bd0b7a27054c2a21e0173fca4bdd288c9e0
