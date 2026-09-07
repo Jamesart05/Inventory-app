@@ -156,12 +156,8 @@ textarea {
 .top-bar {
   position: sticky;
   top: 0;
-<<<<<<< HEAD
-  background: rgba(15, 23, 42, 0.9);
-=======
   background: #e4235d;
   color: white;
->>>>>>> 80c67bd0b7a27054c2a21e0173fca4bdd288c9e0
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--border);
   padding: 12px 16px;
