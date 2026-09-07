@@ -1,0 +1,79 @@
+// Prisma schema for the Inventory PWA
+// Uses Neon Postgres. DATABASE_URL should be the pooled (pgbouncer) connection,
+// DIRECT_URL should be the direct connection used for migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items     Item[]
+  movements Movement[]
+
+  @@map("users")
+}
+
+model Item {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  barcode      String?  @unique
+  sku          String?  @unique
+  category     String?
+  unit         String   @default("pcs")
+  quantity     Int      @default(0)
+  costPrice    Decimal  @default(0) @db.Decimal(12, 2)
+  sellingPrice Decimal  @default(0) @db.Decimal(12, 2)
+  reorderLevel Int      @default(0)
+  imageUrl     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  movements Movement[]
+
+  @@index([ownerId])
+  @@index([name])
+  @@map("items")
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+}
+
+model Movement {
+  id        String       @id @default(uuid())
+  type      MovementType
+  quantity  Int
+  unitPrice Decimal      @default(0) @db.Decimal(12, 2)
+  reference String?
+  note      String?
+  createdAt DateTime     @default(now())
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([userId])
+  @@map("movements")
+}
