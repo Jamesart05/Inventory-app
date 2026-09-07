@@ -1,18 +1,19 @@
-// Minimal offline-friendly service worker.
-// Strategy: cache the app shell, use network-first for pages/API calls with
-// a cache fallback, and cache-first for static assets.
-
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2'; // bump so old (possibly broken) caches are discarded
 const SHELL_CACHE = `inventory-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `inventory-runtime-${CACHE_VERSION}`;
 
-const APP_SHELL = ['/', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', '/offline'];
+const APP_SHELL = ['/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) =>
+        // Cache each entry independently so one bad URL can't fail the whole install.
+        Promise.allSettled(
+          APP_SHELL.map((url) => cache.add(url).catch((err) => console.warn('SW: failed to precache', url, err)))
+        )
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -34,12 +35,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return; // don't cache mutating requests
+  if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  // Never intercept API calls to the backend — always go to network so data
-  // stays fresh; fall back to a JSON error only if fully offline.
   if (url.pathname.startsWith('/api')) {
     event.respondWith(
       fetch(request).catch(() =>
@@ -52,7 +51,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for navigations, falling back to cache/offline page.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -61,12 +59,23 @@ self.addEventListener('fetch', (event) => {
           caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(() => caches.match(request).then((res) => res || caches.match('/offline')))
+        .catch(async () => {
+          // Try the exact page from cache, then any cached page as a last
+          // resort, then a hand-built offline response — never fall through
+          // to undefined.
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const offlinePage = await caches.match('/offline');
+          if (offlinePage) return offlinePage;
+          return new Response('<h1>You are offline</h1><p>Please reconnect to continue.</p>', {
+            status: 503,
+            headers: { 'Content-Type': 'text/html' },
+          });
+        })
     );
     return;
   }
 
-  // Cache-first for static assets (JS/CSS/images/fonts).
   event.respondWith(
     caches.match(request).then(
       (cached) =>
