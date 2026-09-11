@@ -7,6 +7,13 @@ import TopBar from '@/components/TopBar';
 import BottomNav from '@/components/BottomNav';
 import { Item, itemsApi } from '@/lib/api';
 
+function formatMoney(value: string | number) {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  return Number.isFinite(num)
+    ? num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '0.00';
+}
+
 function ItemsList() {
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState('');
@@ -72,13 +79,17 @@ function ItemsList() {
             const low = item.quantity <= item.reorderLevel;
             return (
               <Link key={item.id} href={`/items/${item.id}`} className="item-row">
-                <div>
-                  <div>{item.name}</div>
+                <div className="item-main">
+                  <div className="item-name">{item.name}</div>
                   <div className="meta">
                     {item.sku ? `SKU: ${item.sku}` : ''} {item.barcode ? `· ${item.barcode}` : ''}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="item-prices">
+                  <span className="price">Cost: {formatMoney(item.costPrice)}</span>
+                  <span className="price">Sell: {formatMoney(item.sellingPrice)}</span>
+                </div>
+                <div className="item-qty">
                   <div>
                     {item.quantity} {item.unit}
                   </div>
@@ -90,6 +101,70 @@ function ItemsList() {
         </div>
       </div>
       <BottomNav />
+
+      <style jsx>{`
+        .item-row {
+          display: grid;
+          grid-template-columns: 1fr auto auto;
+          grid-template-areas: 'main prices qty';
+          align-items: center;
+          column-gap: 16px;
+          row-gap: 4px;
+          padding: 16px;
+        }
+        .item-main {
+          grid-area: main;
+          min-width: 0;
+        }
+        .item-name {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .item-prices {
+          grid-area: prices;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          text-align: right;
+          white-space: nowrap;
+        }
+        .item-prices .price {
+          font-size: 0.85em;
+          opacity: 0.85;
+        }
+        .item-qty {
+          grid-area: qty;
+          text-align: right;
+          white-space: nowrap;
+          min-width: 70px;
+        }
+
+        @media (max-width: 560px) {
+          .item-row {
+            grid-template-columns: 1fr auto;
+            grid-template-areas:
+              'main qty'
+              'prices prices';
+            row-gap: 6px;
+          }
+          .item-prices {
+            flex-direction: row;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 12px;
+            text-align: left;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .item-prices {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+          }
+        }
+      `}</style>
     </>
   );
 }

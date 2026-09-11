@@ -1,6 +1,8 @@
 const prisma = require('../lib/prisma');
 
 // List items belonging to the logged-in user, with optional text/barcode search.
+// Sorted by urgency: how close (or negative/below) quantity is to reorderLevel,
+// so items needing restock soonest surface first.
 async function listItems(req, res) {
   const { q, barcode, page = 1, pageSize = 20 } = req.query;
   const ownerId = req.user.id;
@@ -22,10 +24,23 @@ async function listItems(req, res) {
   const take = Math.min(Number(pageSize) || 20, 100);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
-  const [items, total] = await Promise.all([
-    prisma.item.findMany({ where, orderBy: { updatedAt: 'desc' }, take, skip }),
+  // Prisma can't order by a computed expression (quantity - reorderLevel)
+  // directly in `orderBy`, so fetch all matches and sort in memory before
+  // paginating. Fine for small/medium inventories; move to a raw SQL query
+  // with ORDER BY (quantity - "reorderLevel") ASC if this table grows large.
+  const [allItems, total] = await Promise.all([
+    prisma.item.findMany({ where }),
     prisma.item.count({ where }),
   ]);
+
+  allItems.sort((a, b) => {
+    const diffA = a.quantity - a.reorderLevel;
+    const diffB = b.quantity - b.reorderLevel;
+    if (diffA !== diffB) return diffA - diffB; // most urgent (lowest/negative) first
+    return a.name.localeCompare(b.name);
+  });
+
+  const items = allItems.slice(skip, skip + take);
 
   res.json({ items, total, page: Number(page), pageSize: take });
 }
