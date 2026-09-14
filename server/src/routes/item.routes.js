@@ -22,6 +22,9 @@ const upload = multer({
 
 const router = express.Router();
 
+const itemController = require('../controllers/item.controller');
+console.log('ITEM CONTROLLER LOADED:', itemController);
+
 router.use(requireAuth);
 
 router.get('/', listItems);
