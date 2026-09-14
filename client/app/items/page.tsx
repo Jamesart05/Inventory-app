@@ -77,15 +77,15 @@ function ItemsList() {
   return (
     <>
       <TopBar title="Inventory" />
-      <div className="container">
+      <div className="container inventory-page-container">
         <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 12 }}>
           <Link href="/items/import" className="btn btn-secondary btn-sm">
             Bulk import
           </Link>
         </div>
 
-        <form className="search-bar-stack" onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        <form className="search-bar-stack" onSubmit={handleSearch}>
+          <div className="row">
             <input
               placeholder="Search general (name, SKU…)"
               value={q}
@@ -99,7 +99,7 @@ function ItemsList() {
               style={{ flex: 1 }}
             />
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="row">
             <input
               placeholder="Filter by Style / Category"
               value={styleFilter}
@@ -114,18 +114,18 @@ function ItemsList() {
               onChange={(e) => setPriceFilter(e.target.value)}
               style={{ flex: 1 }}
             />
-            <button className="btn" type="submit" style={{ width: 'auto', padding: '0 16px' }}>
+            <button className="btn btn-sm-filter" type="submit">
               Filter
             </button>
           </div>
         </form>
 
-        {error && <p className="error-text">{error}</p>}
+        {error && <div className="error-text">{error}</div>}
 
         {items.length === 0 && !loading && (
           <div className="empty-state">
             <p>No items found.</p>
-            <Link href="/items/new" className="btn" style={{ display: 'inline-block', width: 'auto' }}>
+            <Link href="/items/new" className="btn" style={{ display: 'inline-flex', width: 'auto', marginTop: '12px' }}>
               Add your first item
             </Link>
           </div>
@@ -135,20 +135,31 @@ function ItemsList() {
           {items.map((item: any) => {
             const low = item.quantity <= item.reorderLevel;
             return (
-              <Link key={item.id} href={`/items/${item.id}`} className="item-row">
+              <Link key={item.id} href={`/items/${item.id}`} className="item-row custom-item-row">
                 <div className="item-main">
                   <div className="item-name">{item.name}</div>
                   <div className="meta">
                     {item.category ? `Style: ${item.category}` : ''} {item.sku ? `· SKU: ${item.sku}` : ''}
                   </div>
                 </div>
+
                 <div className="item-prices">
-                  <span className="price">Cost: {formatMoney(item.costPrice)}</span>
-                  <span className="price">Retail: {formatMoney(item.retailPrice)}</span>
-                  <span className="price">Wholesale: {formatMoney(item.wholesalePrice)}</span>
+                  <div className="price-line">
+                    <span className="price-label">Cost:</span>
+                    <span className="price-value">{formatMoney(item.costPrice)}</span>
+                  </div>
+                  <div className="price-line">
+                    <span className="price-label">Retail:</span>
+                    <span className="price-value">{formatMoney(item.retailPrice)}</span>
+                  </div>
+                  <div className="price-line">
+                    <span className="price-label">Wholesale:</span>
+                    <span className="price-value">{formatMoney(item.wholesalePrice)}</span>
+                  </div>
                 </div>
+
                 <div className="item-qty">
-                  <div>
+                  <div className="qty-value">
                     {item.quantity} {item.unit}
                   </div>
                   {low && <span className="badge low">Low stock</span>}
@@ -158,59 +169,129 @@ function ItemsList() {
           })}
         </div>
 
-        {loading && <p style={{ textAlign: 'center', margin: '16px 0' }}>Loading more items…</p>}
+        {loading && <div className="loading-text">Loading more items…</div>}
       </div>
       <BottomNav />
 
       <style jsx>{`
-        .item-row {
+        .inventory-page-container {
+          max-width: 900px !important;
+        }
+        .search-bar-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-bottom: 16px;
+          background: var(--surface);
+          padding: 16px;
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+        }
+        .btn-sm-filter {
+          width: auto !important;
+          padding: 0 20px;
+          white-space: nowrap;
+        }
+        .custom-item-row {
           display: grid;
           grid-template-columns: 1fr auto auto;
           grid-template-areas: 'main prices qty';
           align-items: center;
-          column-gap: 16px;
-          row-gap: 4px;
-          padding: 16px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          column-gap: 24px;
+          padding: 14px 18px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+        }
+        .custom-item-row:hover {
+          border-color: var(--primary);
         }
         .item-main {
           grid-area: main;
           min-width: 0;
         }
         .item-name {
-          font-weight: bold;
+          font-weight: 600;
+          font-size: 15px;
+          color: var(--text);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-        }
-        .meta {
-          font-size: 0.8em;
-          opacity: 0.7;
+          margin-bottom: 2px;
         }
         .item-prices {
           grid-area: prices;
           display: flex;
           flex-direction: column;
-          align-items: flex-end;
-          text-align: right;
-          white-space: nowrap;
+          gap: 2px;
+          font-size: 13px;
+          min-width: 170px;
         }
-        .item-prices .price {
-          font-size: 0.8em;
-          opacity: 0.85;
+        .price-line {
+          display: grid;
+          grid-template-columns: 70px 1fr;
+          align-items: center;
+        }
+        .price-label {
+          color: var(--text-muted);
+        }
+        .price-value {
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+          color: var(--text);
+          font-weight: 500;
         }
         .item-qty {
           grid-area: qty;
           text-align: right;
-          white-space: nowrap;
-          min-width: 70px;
+          min-width: 85px;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
         }
-        .badge.low {
-          background: #ff4d4d;
-          color: white;
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 0.75em;
+        .qty-value {
+          font-weight: 600;
+          font-size: 14px;
+          color: var(--text);
+        }
+        .loading-text {
+          text-align: center;
+          margin: 20px 0;
+          font-size: 14px;
+          color: var(--text-muted);
+        }
+
+        /* Responsive layout adaptation for smaller/mobile screens */
+        @media (max-width: 768px) {
+          .search-bar-stack .row {
+            flex-direction: column;
+          }
+          .btn-sm-filter {
+            width: 100% !important;
+          }
+          .custom-item-row {
+            grid-template-columns: 1fr;
+            grid-template-areas: 
+              'main'
+              'prices'
+              'qty';
+            gap: 12px;
+            padding: 12px 14px;
+          }
+          .item-prices {
+            width: 100%;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 6px 0;
+          }
+          .item-qty {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            min-width: 0;
+          }
         }
       `}</style>
     </>
