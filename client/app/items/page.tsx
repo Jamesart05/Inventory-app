@@ -131,42 +131,53 @@ function ItemsList() {
           </div>
         )}
 
-        <div className="item-list">
-          {items.map((item: any) => {
-            const low = item.quantity <= item.reorderLevel;
-            return (
-              <Link key={item.id} href={`/items/${item.id}`} className="item-row custom-item-row">
-                <div className="item-main">
-                  <div className="item-name">{item.name}</div>
-                  <div className="meta">
-                    {item.category ? `Style: ${item.category}` : ''} {item.sku ? `· SKU: ${item.sku}` : ''}
-                  </div>
-                </div>
+        <div className="table-responsive-wrapper">
+          <table className="inventory-table">
+            <tbody>
+              {items.map((item: any) => {
+                const low = item.quantity <= item.reorderLevel;
+                return (
+                  <tr 
+                    key={item.id} 
+                    onClick={() => window.location.href = `/items/${item.id}`}
+                    className="inventory-row"
+                  >
+                    {/* Item Info Column */}
+                    <td className="col-main">
+                      <div className="item-name">{item.name}</div>
+                      <div className="meta">
+                        {item.category ? `Style: ${item.category}` : ''} {item.sku ? `· SKU: ${item.sku}` : ''}
+                      </div>
+                    </td>
 
-                <div className="item-prices">
-                  <div className="price-line">
-                    <span className="price-label">Cost:</span>
-                    <span className="price-value">{formatMoney(item.costPrice)}</span>
-                  </div>
-                  <div className="price-line">
-                    <span className="price-label">Retail:</span>
-                    <span className="price-value">{formatMoney(item.retailPrice)}</span>
-                  </div>
-                  <div className="price-line">
-                    <span className="price-label">Wholesale:</span>
-                    <span className="price-value">{formatMoney(item.wholesalePrice)}</span>
-                  </div>
-                </div>
+                    {/* Prices Column */}
+                    <td className="col-prices">
+                      <div className="price-row">
+                        <span className="price-label">Cost:</span>
+                        <span className="price-val">{formatMoney(item.costPrice)}</span>
+                      </div>
+                      <div className="price-row">
+                        <span className="price-label">Retail:</span>
+                        <span className="price-val">{formatMoney(item.retailPrice)}</span>
+                      </div>
+                      <div className="price-row">
+                        <span className="price-label">Wholesale:</span>
+                        <span className="price-val">{formatMoney(item.wholesalePrice)}</span>
+                      </div>
+                    </td>
 
-                <div className="item-qty">
-                  <div className="qty-value">
-                    {item.quantity} {item.unit}
-                  </div>
-                  {low && <span className="badge low">Low stock</span>}
-                </div>
-              </Link>
-            );
-          })}
+                    {/* Quantity & Badge Column */}
+                    <td className="col-qty">
+                      <div className="qty-val">
+                        {item.quantity} {item.unit}
+                      </div>
+                      {low && <span className="badge low">Low stock</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {loading && <div className="loading-text">Loading more items…</div>}
@@ -175,7 +186,7 @@ function ItemsList() {
 
       <style jsx>{`
         .inventory-page-container {
-          max-width: 900px !important;
+          max-width: 1000px !important;
         }
         .search-bar-stack {
           display: flex;
@@ -192,68 +203,84 @@ function ItemsList() {
           padding: 0 20px;
           white-space: nowrap;
         }
-        .custom-item-row {
-          display: grid;
-          grid-template-columns: 1fr auto auto;
-          grid-template-areas: 'main prices qty';
-          align-items: center;
-          column-gap: 24px;
-          padding: 14px 18px;
+        .table-responsive-wrapper {
+          width: 100%;
+          overflow-x: auto;
+        }
+        .inventory-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0 8px;
+        }
+        .inventory-row {
           background: var(--surface);
           border: 1px solid var(--border);
-          border-radius: var(--radius);
+          cursor: pointer;
+          transition: border-color 0.15s ease, background-color 0.15s ease;
         }
-        .custom-item-row:hover {
+        .inventory-row td {
+          padding: 14px 16px;
+          border-top: 1px solid var(--border);
+          border-bottom: 1px solid var(--border);
+        }
+        .inventory-row td:first-child {
+          border-left: 1px solid var(--border);
+          border-top-left-radius: var(--radius);
+          border-bottom-left-radius: var(--radius);
+        }
+        .inventory-row td:last-child {
+          border-right: 1px solid var(--border);
+          border-top-right-radius: var(--radius);
+          border-bottom-right-radius: var(--radius);
+        }
+        .inventory-row:hover {
           border-color: var(--primary);
+          background: var(--surface-2);
         }
-        .item-main {
-          grid-area: main;
-          min-width: 0;
+        .col-main {
+          width: 50%;
         }
         .item-name {
           font-weight: 600;
           font-size: 15px;
           color: var(--text);
-          overflow: hidden;
-          text-overflow: ellipsis;
+          margin-bottom: 3px;
+        }
+        .meta {
+          font-size: 12px;
+          color: var(--text-muted);
+        }
+        .col-prices {
+          width: 30%;
           white-space: nowrap;
-          margin-bottom: 2px;
         }
-        .item-prices {
-          grid-area: prices;
+        .price-row {
           display: flex;
-          flex-direction: column;
-          gap: 2px;
+          justify-content: space-between;
+          gap: 16px;
           font-size: 13px;
-          min-width: 170px;
-        }
-        .price-line {
-          display: grid;
-          grid-template-columns: 70px 1fr;
-          align-items: center;
+          line-height: 1.5;
         }
         .price-label {
           color: var(--text-muted);
         }
-        .price-value {
-          text-align: right;
+        .price-val {
+          font-weight: 500;
           font-variant-numeric: tabular-nums;
           color: var(--text);
-          font-weight: 500;
-        }
-        .item-qty {
-          grid-area: qty;
           text-align: right;
-          min-width: 85px;
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 4px;
+          min-width: 90px;
         }
-        .qty-value {
+        .col-qty {
+          width: 20%;
+          text-align: right;
+          white-space: nowrap;
+        }
+        .qty-val {
           font-weight: 600;
           font-size: 14px;
           color: var(--text);
+          margin-bottom: 4px;
         }
         .loading-text {
           text-align: center;
@@ -262,7 +289,7 @@ function ItemsList() {
           color: var(--text-muted);
         }
 
-        /* Responsive layout adaptation for smaller/mobile screens */
+        /* Mobile / Smaller screen adaptation */
         @media (max-width: 768px) {
           .search-bar-stack .row {
             flex-direction: column;
@@ -270,27 +297,34 @@ function ItemsList() {
           .btn-sm-filter {
             width: 100% !important;
           }
-          .custom-item-row {
-            grid-template-columns: 1fr;
-            grid-template-areas: 
-              'main'
-              'prices'
-              'qty';
-            gap: 12px;
-            padding: 12px 14px;
-          }
-          .item-prices {
+          .inventory-table, .inventory-table tbody, .inventory-row, .inventory-row td {
+            display: block;
             width: 100%;
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 6px 0;
           }
-          .item-qty {
-            flex-direction: row;
+          .inventory-row {
+            margin-bottom: 12px;
+            border-radius: var(--radius);
+          }
+          .inventory-row td {
+            border: none !important;
+            padding: 10px 14px;
+          }
+          .col-main {
+            border-bottom: 1px solid var(--border) !important;
+          }
+          .col-prices {
+            border-bottom: 1px solid var(--border) !important;
+            padding: 8px 14px !important;
+          }
+          .col-qty {
+            display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%;
-            min-width: 0;
+            text-align: left;
+            padding: 10px 14px !important;
+          }
+          .qty-val {
+            margin-bottom: 0;
           }
         }
       `}</style>
