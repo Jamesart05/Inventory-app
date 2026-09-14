@@ -58,19 +58,35 @@ export const authApi = {
 export interface Item {
   id: string;
   name: string;
-  description?: string | null;
-  barcode?: string | null;
-  sku?: string | null;
-  category?: string | null;
+  description?: string;
+  barcode?: string;
+  sku?: string;
+  category?: string;
   unit: string;
   quantity: number;
-  costPrice: string | number;
-  sellingPrice: string | number;
+  costPrice: number | string;
+  retailPrice: number | string;
+     wholesalePrice: number | string;
   reorderLevel: number;
-  imageUrl?: string | null;
+  imageUrl?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ItemInput {
+  name: string;
+  description?: string;
+  barcode?: string;
+  sku?: string;
+  category?: string;
+  unit?: string;
+  quantity?: number;
+  costPrice?: number;
+  retailPrice?: number;
+  wholesalePrice?: number;
+  reorderLevel?: number;
+  imageUrl?: string;
 }
 
 export interface ItemInput {
