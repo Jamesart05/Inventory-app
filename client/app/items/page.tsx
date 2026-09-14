@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import RequireAuth from '@/components/RequireAuth';
 import TopBar from '@/components/TopBar';
@@ -20,15 +20,23 @@ function ItemsList() {
   const [nameFilter, setNameFilter] = useState('');
   const [styleFilter, setStyleFilter] = useState('');
   const [priceFilter, setPriceFilter] = useState('');
-  const [loading, setLoading] = useState(true);
+  
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (params?: { q?: string; name?: string; style?: string; minPrice?: string }) => {
+  const currentFilters = useRef({ q: '', name: '', style: '', minPrice: '' });
+
+  const loadItems = useCallback(async (pageNum: number, params: { q?: string; name?: string; style?: string; minPrice?: string }, append = false) => {
     setLoading(true);
     setError('');
     try {
-      const { items } = await itemsApi.list(params);
-      setItems(items);
+      const response = await itemsApi.list({ ...params, page: pageNum, pageSize: 20 });
+      const fetchedItems = response.items || [];
+      
+      setItems((prev) => (append ? [...prev, ...fetchedItems] : fetchedItems));
+      setHasMore(fetchedItems.length === 20);
     } catch (err: any) {
       setError(err.message || 'Failed to load items');
     } finally {
@@ -36,13 +44,34 @@ function ItemsList() {
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
-    load();
-  }, [load]);
+    loadItems(1, currentFilters.current, false);
+  }, [loadItems]);
+
+  // Infinite scroll handler (triggers at 3/4 of the way down)
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const threshold = document.documentElement.scrollHeight * 0.75;
+
+      if (scrollPosition >= threshold && !loading && hasMore) {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        loadItems(nextPage, currentFilters.current, true);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [loading, hasMore, page, loadItems]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    load({ q, name: nameFilter, style: styleFilter, minPrice: priceFilter });
+    const filters = { q, name: nameFilter, style: styleFilter, minPrice: priceFilter };
+    currentFilters.current = filters;
+    setPage(1);
+    loadItems(1, filters, false);
   };
 
   return (
@@ -92,9 +121,8 @@ function ItemsList() {
         </form>
 
         {error && <p className="error-text">{error}</p>}
-        {loading && <p>Loading…</p>}
 
-        {!loading && items.length === 0 && (
+        {items.length === 0 && !loading && (
           <div className="empty-state">
             <p>No items found.</p>
             <Link href="/items/new" className="btn" style={{ display: 'inline-block', width: 'auto' }}>
@@ -129,6 +157,8 @@ function ItemsList() {
             );
           })}
         </div>
+
+        {loading && <p style={{ textAlign: 'center', margin: '16px 0' }}>Loading more items…</p>}
       </div>
       <BottomNav />
 

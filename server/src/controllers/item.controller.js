@@ -56,19 +56,18 @@ async function listItems(req, res) {
   const take = Math.min(Number(pageSize) || 20, 100);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
-  const [allItems, total] = await Promise.all([
-    prisma.item.findMany({ where }),
+  // Fetch paginated items directly from database to preserve exact quantities and performance
+  const [items, total] = await Promise.all([
+    prisma.item.findMany({
+      where,
+      skip,
+      take,
+      orderBy: [
+        { name: 'asc' }
+      ]
+    }),
     prisma.item.count({ where }),
   ]);
-
-  allItems.sort((a, b) => {
-    const diffA = a.quantity - a.reorderLevel;
-    const diffB = b.quantity - b.reorderLevel;
-    if (diffA !== diffB) return diffA - diffB;
-    return a.name.localeCompare(b.name);
-  });
-
-  const items = allItems.slice(skip, skip + take);
 
   res.json({ items, total, page: Number(page), pageSize: take });
 }
