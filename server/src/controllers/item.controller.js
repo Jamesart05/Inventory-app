@@ -1,33 +1,61 @@
 const prisma = require('../lib/prisma');
 
-// List items belonging to the logged-in user, with optional text/barcode search.
-// Sorted by urgency: how close (or negative/below) quantity is to reorderLevel,
-// so items needing restock soonest surface first.
 async function listItems(req, res) {
-  const { q, barcode, page = 1, pageSize = 20 } = req.query;
+  const { q, name, style, minPrice, maxPrice, barcode, page = 1, pageSize = 20 } = req.query;
   const ownerId = req.user.id;
 
   const where = { ownerId };
 
   if (barcode) {
     where.barcode = barcode;
-  } else if (q) {
-    where.OR = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
-      { sku: { contains: q, mode: 'insensitive' } },
-      { category: { contains: q, mode: 'insensitive' } },
-      { barcode: { contains: q, mode: 'insensitive' } },
-    ];
+  } else {
+    const conditions = [];
+
+    if (q) {
+      conditions.push({
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { sku: { contains: q, mode: 'insensitive' } },
+          { category: { contains: q, mode: 'insensitive' } },
+          { barcode: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (name) {
+      conditions.push({ name: { contains: name, mode: 'insensitive' } });
+    }
+    if (style) {
+      conditions.push({ category: { contains: style, mode: 'insensitive' } });
+    }
+    if (minPrice || maxPrice) {
+      conditions.push({
+        OR: [
+          {
+            retailPrice: {
+              ...(minPrice ? { gte: Number(minPrice) } : {}),
+              ...(maxPrice ? { lte: Number(maxPrice) } : {}),
+            },
+          },
+          {
+            wholesalePrice: {
+              ...(minPrice ? { gte: Number(minPrice) } : {}),
+              ...(maxPrice ? { lte: Number(maxPrice) } : {}),
+            },
+          },
+        ],
+      });
+    }
+
+    if (conditions.length > 0) {
+      where.AND = conditions;
+    }
   }
 
   const take = Math.min(Number(pageSize) || 20, 100);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
-  // Prisma can't order by a computed expression (quantity - reorderLevel)
-  // directly in `orderBy`, so fetch all matches and sort in memory before
-  // paginating. Fine for small/medium inventories; move to a raw SQL query
-  // with ORDER BY (quantity - "reorderLevel") ASC if this table grows large.
   const [allItems, total] = await Promise.all([
     prisma.item.findMany({ where }),
     prisma.item.count({ where }),
@@ -36,7 +64,7 @@ async function listItems(req, res) {
   allItems.sort((a, b) => {
     const diffA = a.quantity - a.reorderLevel;
     const diffB = b.quantity - b.reorderLevel;
-    if (diffA !== diffB) return diffA - diffB; // most urgent (lowest/negative) first
+    if (diffA !== diffB) return diffA - diffB;
     return a.name.localeCompare(b.name);
   });
 
@@ -54,7 +82,6 @@ async function getItem(req, res) {
   res.json({ item });
 }
 
-// Dedicated barcode lookup, used by the camera scanner on the client.
 async function getItemByBarcode(req, res) {
   const { code } = req.params;
   const item = await prisma.item.findFirst({
@@ -74,12 +101,27 @@ async function createItem(req, res) {
     unit,
     quantity,
     costPrice,
-    sellingPrice,
+    retailPrice,
+    wholesalePrice,
     reorderLevel,
     imageUrl,
   } = req.body;
 
-  if (!name) return res.status(400).json({ error: 'name is required' });
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  const existingItem = await prisma.item.findFirst({
+    where: {
+      ownerId: req.user.id,
+      name: { equals: name.trim(), mode: 'insensitive' },
+      ...(category ? { category: { equals: category.trim(), mode: 'insensitive' } } : {}),
+    },
+  });
+
+  if (existingItem) {
+    return res.status(400).json({ 
+      error: `An item with the name "${name}"${category ? ` under style/category "${category}"` : ''} already exists!` 
+    });
+  }
 
   const item = await prisma.item.create({
     data: {
@@ -91,7 +133,8 @@ async function createItem(req, res) {
       unit: unit || 'pcs',
       quantity: quantity ? Number(quantity) : 0,
       costPrice: costPrice ?? 0,
-      sellingPrice: sellingPrice ?? 0,
+      retailPrice: retailPrice ?? 0,
+      wholesalePrice: wholesalePrice ?? 0,
       reorderLevel: reorderLevel ? Number(reorderLevel) : 0,
       imageUrl,
       ownerId: req.user.id,
@@ -115,7 +158,8 @@ async function updateItem(req, res) {
     category,
     unit,
     costPrice,
-    sellingPrice,
+    retailPrice,
+    wholesalePrice,
     reorderLevel,
     imageUrl,
     isActive,
@@ -131,7 +175,8 @@ async function updateItem(req, res) {
       category,
       unit,
       costPrice,
-      sellingPrice,
+      retailPrice,
+      wholesalePrice,
       reorderLevel: reorderLevel !== undefined ? Number(reorderLevel) : undefined,
       imageUrl,
       isActive,
