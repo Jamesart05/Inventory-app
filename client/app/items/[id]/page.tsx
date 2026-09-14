@@ -1,34 +1,38 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import RequireAuth from '@/components/RequireAuth';
-import TopBar from '@/components/TopBar';
-import BottomNav from '@/components/BottomNav';
-import { Item, Movement, itemsApi, movementsApi, ApiError } from '@/lib/api';
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import RequireAuth from "@/components/RequireAuth";
+import TopBar from "@/components/TopBar";
+import BottomNav from "@/components/BottomNav";
+import { Item, Movement, itemsApi, movementsApi, ApiError } from "@/lib/api";
 
 function ItemDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [item, setItem] = useState<(Item & { movements: Movement[] }) | null>(null);
+  const [item, setItem] = useState<(Item & { movements: Movement[] }) | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  const [moveType, setMoveType] = useState<'STOCK_IN' | 'STOCK_OUT'>('STOCK_IN');
+  const [moveType, setMoveType] = useState<"STOCK_IN" | "STOCK_OUT">(
+    "STOCK_IN",
+  );
   const [moveQty, setMoveQty] = useState(1);
-  const [moveNote, setMoveNote] = useState('');
+  const [moveNote, setMoveNote] = useState("");
   const [moving, setMoving] = useState(false);
-  const [moveError, setMoveError] = useState('');
+  const [moveError, setMoveError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const { item } = await itemsApi.get(id);
       setItem(item);
     } catch (err: any) {
-      setError(err.message || 'Failed to load item');
+      setError(err.message || "Failed to load item");
     } finally {
       setLoading(false);
     }
@@ -39,30 +43,37 @@ function ItemDetail() {
   }, [load]);
 
   const handleDelete = async () => {
-    if (!confirm('Delete this item? This cannot be undone.')) return;
+    if (!confirm("Delete this item? This cannot be undone.")) return;
     try {
       await itemsApi.remove(id);
-      router.push('/items');
+      router.push("/items");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Failed to delete item');
+      alert(err instanceof ApiError ? err.message : "Failed to delete item");
     }
   };
 
   const handleMovement = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMoveError('');
+    setMoveError("");
     if (moveQty <= 0) {
-      setMoveError('Quantity must be greater than 0');
+      setMoveError("Quantity must be greater than 0");
       return;
     }
     setMoving(true);
     try {
-      await movementsApi.create({ itemId: id, type: moveType, quantity: moveQty, note: moveNote });
+      await movementsApi.create({
+        itemId: id,
+        type: moveType,
+        quantity: moveQty,
+        note: moveNote,
+      });
       setMoveQty(1);
-      setMoveNote('');
+      setMoveNote("");
       await load();
     } catch (err) {
-      setMoveError(err instanceof ApiError ? err.message : 'Failed to record movement');
+      setMoveError(
+        err instanceof ApiError ? err.message : "Failed to record movement",
+      );
     } finally {
       setMoving(false);
     }
@@ -78,26 +89,43 @@ function ItemDetail() {
         {item && (
           <>
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div
+                className="row"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                }}
+              >
                 <div>
-                  <h2 style={{ margin: '0 0 4px' }}>{item.name}</h2>
+                  <h2 style={{ margin: "0 0 4px" }}>{item.name}</h2>
                   <div className="meta">
                     {item.sku && <div>SKU: {item.sku}</div>}
                     {item.barcode && <div>Barcode: {item.barcode}</div>}
                     {item.category && <div>Category: {item.category}</div>}
                   </div>
                 </div>
-                <span className={`badge ${item.quantity <= item.reorderLevel ? 'low' : ''}`}>
+                <span
+                  className={`badge ${item.quantity <= item.reorderLevel ? "low" : ""}`}
+                >
                   {item.quantity} {item.unit}
                 </span>
               </div>
-              {item.description && <p style={{ marginTop: 12 }}>{item.description}</p>}
-              <div className="row" style={{ marginTop: 12 }}>
+              {item.description && (
+                <p style={{ marginTop: 12 }}>{item.description}</p>
+              )}
+              <div
+                className="row"
+                style={{ marginTop: 12, display: "flex", gap: "16px" }}
+              >
                 <div>Cost: {Number(item.costPrice).toFixed(2)}</div>
-                <div>Sell: {Number(item.sellingPrice).toFixed(2)}</div>
+                <div>Retail: {Number(item.retailPrice).toFixed(2)}</div>
+                <div>Wholesale: {Number(item.wholesalePrice).toFixed(2)}</div>
               </div>
               <div className="row" style={{ marginTop: 16 }}>
-                <Link href={`/items/${item.id}/edit`} className="btn btn-secondary">
+                <Link
+                  href={`/items/${item.id}/edit`}
+                  className="btn btn-secondary"
+                >
                   Edit
                 </Link>
                 <button className="btn btn-danger" onClick={handleDelete}>
@@ -113,15 +141,15 @@ function ItemDetail() {
                 <div className="row">
                   <button
                     type="button"
-                    className={`btn ${moveType === 'STOCK_IN' ? '' : 'btn-secondary'}`}
-                    onClick={() => setMoveType('STOCK_IN')}
+                    className={`btn ${moveType === "STOCK_IN" ? "" : "btn-secondary"}`}
+                    onClick={() => setMoveType("STOCK_IN")}
                   >
                     Stock in
                   </button>
                   <button
                     type="button"
-                    className={`btn ${moveType === 'STOCK_OUT' ? '' : 'btn-secondary'}`}
-                    onClick={() => setMoveType('STOCK_OUT')}
+                    className={`btn ${moveType === "STOCK_OUT" ? "" : "btn-secondary"}`}
+                    onClick={() => setMoveType("STOCK_OUT")}
                   >
                     Stock out
                   </button>
@@ -137,23 +165,32 @@ function ItemDetail() {
                 </div>
                 <div className="field">
                   <label>Note (optional)</label>
-                  <input value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
+                  <input
+                    value={moveNote}
+                    onChange={(e) => setMoveNote(e.target.value)}
+                  />
                 </div>
                 <button className="btn" type="submit" disabled={moving}>
-                  {moving ? 'Recording…' : 'Record movement'}
+                  {moving ? "Recording…" : "Record movement"}
                 </button>
               </form>
             </div>
 
             <div className="card">
               <h3 style={{ marginTop: 0 }}>Recent movements</h3>
-              {item.movements.length === 0 && <p className="meta">No movements yet.</p>}
+              {item.movements.length === 0 && (
+                <p className="meta">No movements yet.</p>
+              )}
               <div className="item-list">
                 {item.movements.map((m) => (
                   <div key={m.id} className="item-row">
                     <div>
-                      <div>{m.type === 'STOCK_IN' ? 'Stock in' : 'Stock out'}</div>
-                      <div className="meta">{new Date(m.createdAt).toLocaleString()}</div>
+                      <div>
+                        {m.type === "STOCK_IN" ? "Stock in" : "Stock out"}
+                      </div>
+                      <div className="meta">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </div>
                     </div>
                     <div>{m.quantity}</div>
                   </div>
