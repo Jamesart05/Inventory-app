@@ -1,254 +1,210 @@
-const XLSX = require('xlsx');
 const prisma = require('../lib/prisma');
 
-// Maps flexible column headers (from a mom-friendly spreadsheet) to our
-// internal field names. Keys are normalized: lowercased, spaces/underscores
-// stripped.
-const HEADER_MAP = {
-  name: 'name',
-  productname: 'name',
-  itemname: 'name',
-  product: 'name',
-  barcode: 'barcode',
-  upc: 'barcode',
-  ean: 'barcode',
-  sku: 'sku',
-  category: 'category',
-  unit: 'unit',
-  quantity: 'quantity',
-  qty: 'quantity',
-  openingquantity: 'quantity',
-  initialquantity: 'quantity',
-  stock: 'quantity',
-  costprice: 'costPrice',
-  cost: 'costPrice',
-  buyingprice: 'costPrice',
-  sellingprice: 'sellingPrice',
-  price: 'sellingPrice',
-  sellprice: 'sellingPrice',
-  reorderlevel: 'reorderLevel',
-  reorder: 'reorderLevel',
-  minstock: 'reorderLevel',
-  description: 'description',
-  desc: 'description',
-  notes: 'description',
-};
-
-function normalizeKey(key) {
-  return String(key || '').trim().toLowerCase().replace(/[\s_]+/g, '');
-}
-
-function normalizeRow(rawRow) {
-  const row = {};
-  for (const [key, value] of Object.entries(rawRow)) {
-    const mapped = HEADER_MAP[normalizeKey(key)];
-    if (mapped) row[mapped] = value;
-  }
-  return row;
-}
-
-function toNumber(value, fallback = 0) {
-  if (value === undefined || value === null || value === '') return fallback;
-  const n = Number(String(value).replace(/,/g, '').trim());
-  return Number.isFinite(n) ? n : NaN;
-}
-
-function cleanText(value) {
-  if (value === undefined || value === null) return null;
-  const s = String(value).trim();
-  return s === '' ? null : s;
-}
-
-// POST /api/items/import  (multipart/form-data, field name "file")
-async function importItems(req, res) {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded. Attach a CSV or Excel file as "file".' });
-  }
-
-  let workbook;
-  try {
-    workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-  } catch (err) {
-    return res.status(400).json({ error: 'Could not read that file. Please upload a valid CSV or Excel (.xlsx) file.' });
-  }
-
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-  if (rawRows.length === 0) {
-    return res.status(400).json({ error: 'The file has no data rows.' });
-  }
-  if (rawRows.length > 2000) {
-    return res.status(400).json({ error: 'Please import 2000 rows or fewer at a time.' });
-  }
-
+// List items with filters for name, style (category), and price
+async function listItems(req, res) {
+  const { q, name, style, minPrice, maxPrice, barcode, page = 1, pageSize = 20 } = req.query;
   const ownerId = req.user.id;
-  const errors = []; // { row, reason }
-  const validRows = []; // normalized + ready to insert
-  const seenBarcodes = new Map(); // barcode -> row number (dedupe within file)
-  const seenSkus = new Map();
 
-  rawRows.forEach((rawRow, idx) => {
-    const rowNumber = idx + 2; // header is row 1
-    const row = normalizeRow(rawRow);
+  const where = { ownerId };
 
-    const name = cleanText(row.name);
-    if (!name) {
-      errors.push({ row: rowNumber, reason: 'Missing product name' });
-      return;
-    }
+  if (barcode) {
+    where.barcode = barcode;
+  } else {
+    const conditions = [];
 
-    const barcode = cleanText(row.barcode);
-    const sku = cleanText(row.sku);
-
-    if (barcode) {
-      if (seenBarcodes.has(barcode)) {
-        errors.push({ row: rowNumber, reason: `Duplicate barcode "${barcode}" (also on row ${seenBarcodes.get(barcode)})` });
-        return;
-      }
-      seenBarcodes.set(barcode, rowNumber);
-    }
-    if (sku) {
-      if (seenSkus.has(sku)) {
-        errors.push({ row: rowNumber, reason: `Duplicate SKU "${sku}" (also on row ${seenSkus.get(sku)})` });
-        return;
-      }
-      seenSkus.set(sku, rowNumber);
-    }
-
-    const quantity = toNumber(row.quantity, 0);
-    const costPrice = toNumber(row.costPrice, 0);
-    const sellingPrice = toNumber(row.sellingPrice, 0);
-    const reorderLevel = toNumber(row.reorderLevel, 0);
-
-    if ([quantity, costPrice, sellingPrice, reorderLevel].some((n) => Number.isNaN(n))) {
-      errors.push({ row: rowNumber, reason: 'Quantity/price/reorder level must be numbers' });
-      return;
-    }
-    if (quantity < 0) {
-      errors.push({ row: rowNumber, reason: 'Quantity cannot be negative' });
-      return;
-    }
-
-    validRows.push({
-      rowNumber,
-      name,
-      description: cleanText(row.description),
-      barcode,
-      sku,
-      category: cleanText(row.category),
-      unit: cleanText(row.unit) || 'pcs',
-      quantity,
-      costPrice,
-      sellingPrice,
-      reorderLevel,
-    });
-  });
-
-  // Check remaining candidates against what's already in the database.
-  if (validRows.length > 0) {
-    const barcodesToCheck = validRows.map((r) => r.barcode).filter(Boolean);
-    const skusToCheck = validRows.map((r) => r.sku).filter(Boolean);
-
-    const existing = await prisma.item.findMany({
-      where: {
-        ownerId,
+    // General search query `q`
+    if (q) {
+      conditions.push({
         OR: [
-          barcodesToCheck.length ? { barcode: { in: barcodesToCheck } } : undefined,
-          skusToCheck.length ? { sku: { in: skusToCheck } } : undefined,
-        ].filter(Boolean),
-      },
-      select: { barcode: true, sku: true },
-    });
-    const existingBarcodes = new Set(existing.map((e) => e.barcode).filter(Boolean));
-    const existingSkus = new Set(existing.map((e) => e.sku).filter(Boolean));
-
-    for (let i = validRows.length - 1; i >= 0; i--) {
-      const r = validRows[i];
-      if ((r.barcode && existingBarcodes.has(r.barcode)) || (r.sku && existingSkus.has(r.sku))) {
-        errors.push({ row: r.rowNumber, reason: 'An item with this barcode/SKU already exists' });
-        validRows.splice(i, 1);
-      }
+          { name: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { sku: { contains: q, mode: 'insensitive' } },
+          { category: { contains: q, mode: 'insensitive' } },
+          { barcode: { contains: q, mode: 'insensitive' } },
+        ],
+      });
     }
-    validRows.sort((a, b) => a.rowNumber - b.rowNumber);
-  }
 
-  if (validRows.length === 0) {
-    return res.status(200).json({ imported: 0, total: rawRows.length, errors });
-  }
-
-  // Neon's pooled connection (PgBouncer, transaction mode) can't hold a
-  // multi-statement interactive transaction pinned to one connection, which
-  // caused "transaction not found" errors when this ran as one big
-  // prisma.$transaction(). Instead, create items independently (each call is
-  // a single round trip, safe for a pooler), then batch-insert the STOCK_IN
-  // movements in one query. Chunked to avoid opening too many connections
-  // against Neon's pool limit on very large imports.
-  const CHUNK_SIZE = 25;
-  const createdItems = [];
-
-  for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
-    const chunk = validRows.slice(i, i + CHUNK_SIZE);
-
-    const results = await Promise.allSettled(
-      chunk.map((r) =>
-        prisma.item.create({
-          data: {
-            name: r.name,
-            description: r.description,
-            barcode: r.barcode,
-            sku: r.sku,
-            category: r.category,
-            unit: r.unit,
-            quantity: r.quantity,
-            costPrice: r.costPrice,
-            sellingPrice: r.sellingPrice,
-            reorderLevel: r.reorderLevel,
-            ownerId,
+    // Specific filters
+    if (name) {
+      conditions.push({ name: { contains: name, mode: 'insensitive' } });
+    }
+    if (style) {
+      conditions.push({ category: { contains: style, mode: 'insensitive' } });
+    }
+    if (minPrice || maxPrice) {
+      conditions.push({
+        OR: [
+          {
+            retailPrice: {
+              ...(minPrice ? { gte: Number(minPrice) } : {}),
+              ...(maxPrice ? { lte: Number(maxPrice) } : {}),
+            },
           },
-        }).then((item) => ({ item, row: r }))
-      )
-    );
-
-    const movementsData = [];
-
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j];
-      const r = chunk[j];
-
-      if (result.status === 'fulfilled') {
-        const { item } = result.value;
-        createdItems.push(item);
-
-        if (r.quantity > 0) {
-          movementsData.push({
-            itemId: item.id,
-            userId: ownerId,
-            type: 'STOCK_IN',
-            quantity: r.quantity,
-            unitPrice: r.costPrice,
-            reference: 'BULK_IMPORT',
-            note: 'Initial stock (bulk import)',
-          });
-        }
-      } else {
-        // Most likely a race: someone else imported the same barcode/SKU
-        // between our earlier existence check and this insert.
-        errors.push({ row: r.rowNumber, reason: `Failed to create item: ${result.reason.message}` });
-      }
+          {
+            wholesalePrice: {
+              ...(minPrice ? { gte: Number(minPrice) } : {}),
+              ...(maxPrice ? { lte: Number(maxPrice) } : {}),
+            },
+          },
+        ],
+      });
     }
 
-    if (movementsData.length > 0) {
-      await prisma.movement.createMany({ data: movementsData });
+    if (conditions.length > 0) {
+      where.AND = conditions;
     }
   }
 
-  res.status(201).json({
-    imported: createdItems.length,
-    total: rawRows.length,
-    errors,
-    items: createdItems,
+  const take = Math.min(Number(pageSize) || 20, 100);
+  const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
+
+  const [allItems, total] = await Promise.all([
+    prisma.item.findMany({ where }),
+    prisma.item.count({ where }),
+  ]);
+
+  allItems.sort((a, b) => {
+    const diffA = a.quantity - a.reorderLevel;
+    const diffB = b.quantity - b.reorderLevel;
+    if (diffA !== diffB) return diffA - diffB;
+    return a.name.localeCompare(b.name);
   });
+
+  const items = allItems.slice(skip, skip + take);
+
+  res.json({ items, total, page: Number(page), pageSize: take });
 }
 
-module.exports = { importItems };
+async function createItem(req, res) {
+  const {
+    name,
+    description,
+    barcode,
+    sku,
+    category,
+    unit,
+    quantity,
+    costPrice,
+    retailPrice,
+    wholesalePrice,
+    reorderLevel,
+    imageUrl,
+  } = req.body;
+
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  // Check if an item with the same name (and optionally style/category) already exists for this user
+  const existingItem = await prisma.item.findFirst({
+    where: {
+      ownerId: req.user.id,
+      name: { equals: name.trim(), mode: 'insensitive' },
+      ...(category ? { category: { equals: category.trim(), mode: 'insensitive' } } : {}),
+    },
+  });
+
+  if (existingItem) {
+    return res.status(400).json({ 
+      error: `An item with the name "${name}"${category ? ` under style/category "${category}"` : ''} already exists!` 
+    });
+  }
+
+  const item = await prisma.item.create({
+    data: {
+      name,
+      description,
+      barcode: barcode || null,
+      sku: sku || null,
+      category,
+      unit: unit || 'pcs',
+      quantity: quantity ? Number(quantity) : 0,
+      costPrice: costPrice ?? 0,
+      retailPrice: retailPrice ?? 0,
+      wholesalePrice: wholesalePrice ?? 0,
+      reorderLevel: reorderLevel ? Number(reorderLevel) : 0,
+      imageUrl,
+      ownerId: req.user.id,
+    },
+  });
+
+  res.status(201).json({ item });
+}
+
+async function updateItem(req, res) {
+  const existing = await prisma.item.findFirst({
+    where: { id: req.params.id, ownerId: req.user.id },
+  });
+  if (!existing) return res.status(404).json({ error: 'Item not found' });
+
+  const {
+    name,
+    description,
+    barcode,
+    sku,
+    category,
+    unit,
+    costPrice,
+    retailPrice,
+    wholesalePrice,
+    reorderLevel,
+    imageUrl,
+    isActive,
+  } = req.body;
+
+  const item = await prisma.item.update({
+    where: { id: existing.id },
+    data: {
+      name,
+      description,
+      barcode: barcode || null,
+      sku: sku || null,
+      category,
+      unit,
+      costPrice,
+      retailPrice,
+      wholesalePrice,
+      reorderLevel: reorderLevel !== undefined ? Number(reorderLevel) : undefined,
+      imageUrl,
+      isActive,
+    },
+  });
+
+  res.json({ item });
+}
+
+async function deleteItem(req, res) {
+  const existing = await prisma.item.findFirst({
+    where: { id: req.params.id, ownerId: req.user.id },
+  });
+  if (!existing) return res.status(404).json({ error: 'Item not found' });
+
+  await prisma.item.delete({ where: { id: existing.id } });
+  res.json({ message: 'Item deleted' });
+}
+
+async function getItem(req, res) {
+  const item = await prisma.item.findFirst({
+    where: { id: req.params.id, ownerId: req.user.id },
+    include: { movements: { orderBy: { createdAt: 'desc' }, take: 20 } },
+  });
+  if (!item) return res.status(404).json({ error: 'Item not found' });
+  res.json({ item });
+}
+
+async function getItemByBarcode(req, res) {
+  const { code } = req.params;
+  const item = await prisma.item.findFirst({
+    where: { barcode: code, ownerId: req.user.id },
+  });
+  if (!item) return res.status(404).json({ error: 'No item with that barcode' });
+  res.json({ item });
+}
+
+module.exports = {
+  listItems,
+  getItem,
+  getItemByBarcode,
+  createItem,
+  updateItem,
+  deleteItem,
+};

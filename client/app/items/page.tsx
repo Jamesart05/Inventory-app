@@ -17,14 +17,17 @@ function formatMoney(value: string | number) {
 function ItemsList() {
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
+  const [styleFilter, setStyleFilter] = useState('');
+  const [priceFilter, setPriceFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (query?: string) => {
+  const load = useCallback(async (params?: { q?: string; name?: string; style?: string; minPrice?: string }) => {
     setLoading(true);
     setError('');
     try {
-      const { items } = await itemsApi.list({ q: query });
+      const { items } = await itemsApi.list(params);
       setItems(items);
     } catch (err: any) {
       setError(err.message || 'Failed to load items');
@@ -39,7 +42,7 @@ function ItemsList() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    load(q);
+    load({ q, name: nameFilter, style: styleFilter, minPrice: priceFilter });
   };
 
   return (
@@ -51,15 +54,41 @@ function ItemsList() {
             Bulk import
           </Link>
         </div>
-        <form className="search-bar" onSubmit={handleSearch}>
-          <input
-            placeholder="Search by name, SKU, category…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <button className="icon-btn" type="submit" aria-label="Search">
-            🔍
-          </button>
+
+        <form className="search-bar-stack" onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              placeholder="Search general (name, SKU…)"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{ flex: 2 }}
+            />
+            <input
+              placeholder="Filter by Name"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              placeholder="Filter by Style / Category"
+              value={styleFilter}
+              onChange={(e) => setStyleFilter(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <input
+              placeholder="Min Price"
+              type="number"
+              step="0.01"
+              value={priceFilter}
+              onChange={(e) => setPriceFilter(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button className="btn" type="submit" style={{ width: 'auto', padding: '0 16px' }}>
+              Filter
+            </button>
+          </div>
         </form>
 
         {error && <p className="error-text">{error}</p>}
@@ -67,7 +96,7 @@ function ItemsList() {
 
         {!loading && items.length === 0 && (
           <div className="empty-state">
-            <p>No items yet.</p>
+            <p>No items found.</p>
             <Link href="/items/new" className="btn" style={{ display: 'inline-block', width: 'auto' }}>
               Add your first item
             </Link>
@@ -75,19 +104,20 @@ function ItemsList() {
         )}
 
         <div className="item-list">
-          {items.map((item) => {
+          {items.map((item: any) => {
             const low = item.quantity <= item.reorderLevel;
             return (
               <Link key={item.id} href={`/items/${item.id}`} className="item-row">
                 <div className="item-main">
                   <div className="item-name">{item.name}</div>
                   <div className="meta">
-                    {item.sku ? `SKU: ${item.sku}` : ''} {item.barcode ? `· ${item.barcode}` : ''}
+                    {item.category ? `Style: ${item.category}` : ''} {item.sku ? `· SKU: ${item.sku}` : ''}
                   </div>
                 </div>
                 <div className="item-prices">
                   <span className="price">Cost: {formatMoney(item.costPrice)}</span>
-                  <span className="price">Sell: {formatMoney(item.sellingPrice)}</span>
+                  <span className="price">Retail: {formatMoney(item.retailPrice)}</span>
+                  <span className="price">Wholesale: {formatMoney(item.wholesalePrice)}</span>
                 </div>
                 <div className="item-qty">
                   <div>
@@ -111,15 +141,21 @@ function ItemsList() {
           column-gap: 16px;
           row-gap: 4px;
           padding: 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .item-main {
           grid-area: main;
           min-width: 0;
         }
         .item-name {
+          font-weight: bold;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+        .meta {
+          font-size: 0.8em;
+          opacity: 0.7;
         }
         .item-prices {
           grid-area: prices;
@@ -130,7 +166,7 @@ function ItemsList() {
           white-space: nowrap;
         }
         .item-prices .price {
-          font-size: 0.85em;
+          font-size: 0.8em;
           opacity: 0.85;
         }
         .item-qty {
@@ -139,30 +175,12 @@ function ItemsList() {
           white-space: nowrap;
           min-width: 70px;
         }
-
-        @media (max-width: 560px) {
-          .item-row {
-            grid-template-columns: 1fr auto;
-            grid-template-areas:
-              'main qty'
-              'prices prices';
-            row-gap: 6px;
-          }
-          .item-prices {
-            flex-direction: row;
-            justify-content: flex-start;
-            align-items: center;
-            gap: 12px;
-            text-align: left;
-          }
-        }
-
-        @media (max-width: 360px) {
-          .item-prices {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 2px;
-          }
+        .badge.low {
+          background: #ff4d4d;
+          color: white;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 0.75em;
         }
       `}</style>
     </>

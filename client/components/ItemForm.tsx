@@ -12,7 +12,7 @@ interface Props {
 
 export default function ItemForm({ initial, mode }: Props) {
   const router = useRouter();
-  const [form, setForm] = useState<ItemInput>({
+  const [form, setForm] = useState<any>({
     name: initial?.name || '',
     description: initial?.description || '',
     barcode: initial?.barcode || '',
@@ -21,14 +21,15 @@ export default function ItemForm({ initial, mode }: Props) {
     unit: initial?.unit || 'pcs',
     quantity: initial?.quantity ?? 0,
     costPrice: initial ? Number(initial.costPrice) : 0,
-    sellingPrice: initial ? Number(initial.sellingPrice) : 0,
+    retailPrice: initial ? Number(initial.retailPrice) : 0,
+    wholesalePrice: initial ? Number(initial.wholesalePrice) : 0,
     reorderLevel: initial?.reorderLevel ?? 0,
   });
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const update = (key: keyof ItemInput, value: any) => setForm((f) => ({ ...f, [key]: value }));
+  const update = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
 
   const handleScan = (code: string) => {
     update('barcode', code);
@@ -51,8 +52,8 @@ export default function ItemForm({ initial, mode }: Props) {
         await itemsApi.update(initial.id, form);
         router.push(`/items/${initial.id}`);
       }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } catch (err: any) {
+      setError(err instanceof ApiError ? err.message : err.message || 'Something went wrong');
     } finally {
       setSubmitting(false);
     }
@@ -60,7 +61,7 @@ export default function ItemForm({ initial, mode }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="card">
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="error-text" style={{ color: '#ff4d4d', marginBottom: '12px' }}>{error}</p>}
 
       <div className="field">
         <label>Name *</label>
@@ -69,11 +70,12 @@ export default function ItemForm({ initial, mode }: Props) {
 
       <div className="field">
         <label>Barcode</label>
-        <div className="row">
+        <div className="row" style={{ display: 'flex', gap: '8px' }}>
           <input
             value={form.barcode}
             onChange={(e) => update('barcode', e.target.value)}
             placeholder="Scan or type barcode"
+            style={{ flex: 1 }}
           />
           <button type="button" className="icon-btn" onClick={() => setScanning((s) => !s)} aria-label="Scan barcode">
             📷
@@ -92,7 +94,7 @@ export default function ItemForm({ initial, mode }: Props) {
       </div>
 
       <div className="field">
-        <label>Category</label>
+        <label>Style / Category</label>
         <input value={form.category} onChange={(e) => update('category', e.target.value)} />
       </div>
 
@@ -105,7 +107,7 @@ export default function ItemForm({ initial, mode }: Props) {
         />
       </div>
 
-      <div className="row">
+      <div className="row" style={{ display: 'flex', gap: '8px' }}>
         <div className="field" style={{ flex: 1 }}>
           <label>Unit</label>
           <input value={form.unit} onChange={(e) => update('unit', e.target.value)} />
@@ -121,9 +123,9 @@ export default function ItemForm({ initial, mode }: Props) {
         </div>
       </div>
 
-      <div className="row">
+      <div className="row" style={{ display: 'flex', gap: '8px' }}>
         <div className="field" style={{ flex: 1 }}>
-          <label>Cost price</label>
+          <label>Cost Price</label>
           <input
             type="number"
             step="0.01"
@@ -132,12 +134,21 @@ export default function ItemForm({ initial, mode }: Props) {
           />
         </div>
         <div className="field" style={{ flex: 1 }}>
-          <label>Selling price</label>
+          <label>Retail Price</label>
           <input
             type="number"
             step="0.01"
-            value={form.sellingPrice}
-            onChange={(e) => update('sellingPrice', Number(e.target.value))}
+            value={form.retailPrice}
+            onChange={(e) => update('retailPrice', Number(e.target.value))}
+          />
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Wholesale Price</label>
+          <input
+            type="number"
+            step="0.01"
+            value={form.wholesalePrice}
+            onChange={(e) => update('wholesalePrice', Number(e.target.value))}
           />
         </div>
       </div>
@@ -151,7 +162,7 @@ export default function ItemForm({ initial, mode }: Props) {
         />
       </div>
 
-      <button className="btn" type="submit" disabled={submitting}>
+      <button className="btn" type="submit" disabled={submitting} style={{ marginTop: '16px' }}>
         {submitting ? 'Saving…' : mode === 'create' ? 'Create item' : 'Save changes'}
       </button>
     </form>

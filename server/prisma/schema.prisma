@@ -8,8 +8,6 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -27,21 +25,22 @@ model User {
 }
 
 model Item {
-  id           String   @id @default(uuid())
-  name         String
-  description  String?
-  barcode      String?  @unique
-  sku          String?  @unique
-  category     String?
-  unit         String   @default("pcs")
-  quantity     Int      @default(0)
-  costPrice    Decimal  @default(0) @db.Decimal(12, 2)
-  sellingPrice Decimal  @default(0) @db.Decimal(12, 2)
-  reorderLevel Int      @default(0)
-  imageUrl     String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  barcode       String?  @unique
+  sku           String?  @unique
+  category      String?  // Acts as "style" or category
+  unit          String   @default("pcs")
+  quantity      Int      @default(0)
+  costPrice     Decimal  @default(0) @db.Decimal(12, 2)
+  retailPrice   Decimal  @default(0) @db.Decimal(12, 2)
+  wholesalePrice Decimal @default(0) @db.Decimal(12, 2)
+  reorderLevel  Int      @default(0)
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -50,6 +49,7 @@ model Item {
 
   @@index([ownerId])
   @@index([name])
+  @@index([category])
   @@map("items")
 }
 
