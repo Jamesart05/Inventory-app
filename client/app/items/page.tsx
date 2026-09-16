@@ -17,22 +17,19 @@ function formatMoney(value: string | number) {
 function ItemsList() {
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState('');
-  const [nameFilter, setNameFilter] = useState('');
-  const [styleFilter, setStyleFilter] = useState('');
-  const [priceFilter, setPriceFilter] = useState('');
   
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const currentFilters = useRef({ q: '', name: '', style: '', minPrice: '' });
+  const currentQuery = useRef('');
 
-  const loadItems = useCallback(async (pageNum: number, params: { q?: string; name?: string; style?: string; minPrice?: string }, append = false) => {
+  const loadItems = useCallback(async (pageNum: number, searchQuery: string, append = false) => {
     setLoading(true);
     setError('');
     try {
-      const response = await itemsApi.list({ ...params, page: pageNum, pageSize: 20 });
+      const response = await itemsApi.list({ q: searchQuery, page: pageNum, pageSize: 20 });
       const fetchedItems = response.items || [];
       
       setItems((prev) => (append ? [...prev, ...fetchedItems] : fetchedItems));
@@ -46,7 +43,7 @@ function ItemsList() {
 
   // Initial load
   useEffect(() => {
-    loadItems(1, currentFilters.current, false);
+    loadItems(1, currentQuery.current, false);
   }, [loadItems]);
 
   // Infinite scroll handler (triggers at 3/4 of the way down)
@@ -58,7 +55,7 @@ function ItemsList() {
       if (scrollPosition >= threshold && !loading && hasMore) {
         const nextPage = page + 1;
         setPage(nextPage);
-        loadItems(nextPage, currentFilters.current, true);
+        loadItems(nextPage, currentQuery.current, true);
       }
     };
 
@@ -68,10 +65,9 @@ function ItemsList() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const filters = { q, name: nameFilter, style: styleFilter, minPrice: priceFilter };
-    currentFilters.current = filters;
+    currentQuery.current = q;
     setPage(1);
-    loadItems(1, filters, false);
+    loadItems(1, q, false);
   };
 
   return (
@@ -84,38 +80,17 @@ function ItemsList() {
           </Link>
         </div>
 
+        {/* Single universal search input */}
         <form className="search-bar-stack" onSubmit={handleSearch}>
-          <div className="row">
+          <div className="search-wrapper">
             <input
-              placeholder="Search general (name, SKU…)"
+              placeholder="Search inventory by name, SKU, style, or barcode…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              style={{ flex: 2 }}
+              className="single-search-input"
             />
-            <input
-              placeholder="Filter by Name"
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
-              style={{ flex: 1 }}
-            />
-          </div>
-          <div className="row">
-            <input
-              placeholder="Filter by Style / Category"
-              value={styleFilter}
-              onChange={(e) => setStyleFilter(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <input
-              placeholder="Min Price"
-              type="number"
-              step="0.01"
-              value={priceFilter}
-              onChange={(e) => setPriceFilter(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button className="btn btn-sm-filter" type="submit">
-              Filter
+            <button className="btn btn-sm-search" type="submit">
+              Search
             </button>
           </div>
         </form>
@@ -133,6 +108,13 @@ function ItemsList() {
 
         <div className="table-responsive-wrapper">
           <table className="inventory-table">
+            <thead>
+              <tr className="inventory-header-row">
+                <th className="th-main">Item Details</th>
+                <th className="th-prices">Pricing (Cost / Retail / Wholesale)</th>
+                <th className="th-qty">Quantity</th>
+              </tr>
+            </thead>
             <tbody>
               {items.map((item: any) => {
                 const low = item.quantity <= item.reorderLevel;
@@ -192,15 +174,32 @@ function ItemsList() {
           display: flex;
           flex-direction: column;
           gap: 10px;
-          margin-bottom: 16px;
+          margin-bottom: 20px;
           background: var(--surface);
           padding: 16px;
           border: 1px solid var(--border);
           border-radius: var(--radius);
         }
-        .btn-sm-filter {
+        .search-wrapper {
+          display: flex;
+          gap: 10px;
+        }
+        .single-search-input {
+          flex: 1;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: var(--surface-2);
+          border: 1px solid var(--border);
+          color: var(--text);
+          font-size: 15px;
+        }
+        .single-search-input:focus {
+          outline: 2px solid var(--primary);
+          outline-offset: 1px;
+        }
+        .btn-sm-search {
           width: auto !important;
-          padding: 0 20px;
+          padding: 0 24px;
           white-space: nowrap;
         }
         .table-responsive-wrapper {
@@ -211,6 +210,18 @@ function ItemsList() {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0 8px;
+        }
+        .inventory-header-row th {
+          text-align: left;
+          padding: 0 16px 8px 16px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .th-qty {
+          text-align: right !important;
         }
         .inventory-row {
           background: var(--surface);
@@ -238,7 +249,7 @@ function ItemsList() {
           background: var(--surface-2);
         }
         .col-main {
-          width: 50%;
+          width: 45%;
         }
         .item-name {
           font-weight: 600;
@@ -251,7 +262,7 @@ function ItemsList() {
           color: var(--text-muted);
         }
         .col-prices {
-          width: 30%;
+          width: 35%;
           white-space: nowrap;
         }
         .price-row {
@@ -291,10 +302,13 @@ function ItemsList() {
 
         /* Mobile / Smaller screen adaptation */
         @media (max-width: 768px) {
-          .search-bar-stack .row {
+          .inventory-header-row {
+            display: none; /* Hide column header titles on small mobile screens */
+          }
+          .search-wrapper {
             flex-direction: column;
           }
-          .btn-sm-filter {
+          .btn-sm-search {
             width: 100% !important;
           }
           .inventory-table, .inventory-table tbody, .inventory-row, .inventory-row td {
