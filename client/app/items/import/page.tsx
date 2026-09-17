@@ -8,7 +8,7 @@ import BottomNav from '@/components/BottomNav';
 import { itemsApi, ImportResult, ApiError } from '@/lib/api';
 
 const TEMPLATE_CSV =
-  'name,barcode,sku,category,unit,quantity,costPrice,sellingPrice,reorderLevel,description\n' +
+  'name,barcode,sku,category,unit,quantity,costPrice,retailPrice, wholesalePrice,reorderLevel,description\n' +
   'Coca-Cola 50cl,5449000000996,,Drinks,pcs,100,400,500,20,\n' +
   'Peak Milk 400g,,PM-400,Dairy,pcs,50,4000,4500,10,\n';
 

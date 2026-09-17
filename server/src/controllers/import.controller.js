@@ -18,16 +18,23 @@ const HEADER_MAP = {
   openingquantity: 'quantity',
   initialquantity: 'quantity',
   stock: 'quantity',
+  
+  // Cost variations
   costprice: 'costPrice',
   cost: 'costPrice',
+  unitcost: 'costPrice',     // <-- Added this so "unit cost" works automatically!
   buyingprice: 'costPrice',
+  
+  // Retail variations (Removed generic 'price' to prevent conflicts)
   retailprice: 'retailPrice',
   retail: 'retailPrice',
   sellingprice: 'retailPrice',
   sellprice: 'retailPrice',
-  price: 'retailPrice',
+  
+  // Wholesale variations
   wholesaleprice: 'wholesalePrice',
   wholesale: 'wholesalePrice',
+  
   reorderlevel: 'reorderLevel',
   reorder: 'reorderLevel',
   minstock: 'reorderLevel',
